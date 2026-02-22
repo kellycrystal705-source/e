@@ -214,4 +214,8 @@ jobs:
         with:
           name: vmlinuz
           path: linux-6.6/arch/x86/boot/bzImage
-          retention-days: 30
+
+- name: Show biggest compiled symbols
+        run: |
+          cd linux-6.6
+          nm --size-sort -r vmlinux | head -60
