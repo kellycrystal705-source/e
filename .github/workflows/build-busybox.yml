@@ -1,0 +1,74 @@
+name: Build Busybox i386
+
+on:
+  workflow_dispatch:  # run manually once, then commit the binary
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib bzip2 wget
+
+      - name: Download busybox source
+        run: |
+          wget -q https://busybox.net/downloads/busybox-1.36.1.tar.bz2
+          tar -xf busybox-1.36.1.tar.bz2
+          rm busybox-1.36.1.tar.bz2
+
+      - name: Configure busybox (minimal i386 static)
+        run: |
+          cd busybox-1.36.1
+          make allnoconfig
+
+          # Enable only what we need
+          cat >> .config << 'EOF'
+          CONFIG_STATIC=y
+          CONFIG_CROSS_COMPILER_PREFIX=""
+          CONFIG_EXTRA_CFLAGS="-m32"
+          CONFIG_EXTRA_LDFLAGS="-m32"
+          CONFIG_ASH=y
+          CONFIG_ASH_JOB_CONTROL=n
+          CONFIG_ASH_ALIAS=y
+          CONFIG_ASH_CMDCMD=n
+          CONFIG_ASH_BUILTIN_ECHO=y
+          CONFIG_ASH_BUILTIN_PRINTF=y
+          CONFIG_ASH_BUILTIN_TEST=y
+          CONFIG_ECHO=y
+          CONFIG_PRINTF=y
+          CONFIG_TEST=y
+          CONFIG_LS=y
+          CONFIG_CAT=y
+          CONFIG_MKDIR=y
+          CONFIG_RM=y
+          CONFIG_CP=y
+          CONFIG_MV=y
+          CONFIG_MOUNT=y
+          CONFIG_UMOUNT=y
+          CONFIG_CLEAR=y
+          CONFIG_DMESG=y
+          CONFIG_REBOOT=y
+          CONFIG_POWEROFF=y
+          CONFIG_SLEEP=y
+          CONFIG_DATE=y
+          EOF
+
+          make oldconfig
+
+      - name: Build busybox
+        run: |
+          cd busybox-1.36.1
+          make -j$(nproc)
+          ls -lh busybox
+          file busybox
+
+      - name: Upload busybox binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: busybox-i386
+          path: busybox-1.36.1/busybox
+          retention-days: 90
