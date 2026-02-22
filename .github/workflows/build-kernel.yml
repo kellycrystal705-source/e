@@ -1,4 +1,4 @@
-name: Build Minimal Kernel
+name: Build Floppy Kernel
 
 on:
   push:
@@ -19,7 +19,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libncurses-dev bison flex \
-            libssl-dev libelf-dev bc xz-utils wget
+            libssl-dev libelf-dev bc xz-utils wget \
+            gcc-multilib syslinux mtools dosfstools
 
       - name: Download kernel 6.6 LTS
         run: |
@@ -27,22 +28,21 @@ jobs:
           tar -xf linux-6.6.tar.xz
           rm linux-6.6.tar.xz
 
-      - name: Build config
+      - name: Build 32-bit config
         run: |
           cd linux-6.6
-          make allnoconfig
-          ./scripts/kconfig/merge_config.sh .config ../kernel.fragment
-          make olddefconfig
+          make ARCH=i386 allnoconfig
+          ./scripts/kconfig/merge_config.sh -m .config ../kernel.fragment
+          make ARCH=i386 olddefconfig
 
-      - name: Force-remove unwanted options with sed
+      - name: Force-remove unwanted options
         run: |
           cd linux-6.6
           force_off() {
-            local opt=$1
-            sed -i "s/^CONFIG_${opt}=.*$/# CONFIG_${opt} is not set/" .config
+            sed -i "s/^CONFIG_${1}=.*$/# CONFIG_${1} is not set/" .config
           }
 
-          # Debug/trace bloat
+          # Debug bloat
           force_off KALLSYMS
           force_off PERF_EVENTS
           force_off BUG
@@ -55,7 +55,7 @@ jobs:
           force_off STACKDEPOT
           force_off FRAME_POINTER
 
-          # Unneeded syscalls
+          # Syscalls not needed
           force_off IO_URING
           force_off AIO
           force_off SGETMASK_SYSCALL
@@ -75,17 +75,12 @@ jobs:
           force_off CPU_SUP_HYGON
           force_off CPU_SUP_CENTAUR
           force_off CPU_SUP_ZHAOXIN
-          force_off X86_INTEL_MEMORY_PROTECTION_KEYS
-          force_off X86_INTEL_TSX_MODE_OFF
-          force_off X86_VMX_FEATURE_NAMES
-          force_off IA32_FEAT_CTL
-          force_off X86_5LEVEL
+          force_off X86_INTEL_PSTATE
           force_off PERF_EVENTS_INTEL_UNCORE
           force_off PERF_EVENTS_INTEL_RAPL
           force_off PERF_EVENTS_INTEL_CSTATE
           force_off X86_PKG_TEMP_THERMAL
           force_off INTEL_TCC
-          force_off X86_INTEL_PSTATE
 
           # ACPI extras
           force_off ACPI_CPPC_LIB
@@ -103,65 +98,29 @@ jobs:
           force_off MAILBOX
           force_off PCC
 
-          # PS/2 keyboard stack
+          # PS/2 stack
           force_off SERIO
           force_off SERIO_I8042
           force_off SERIO_LIBPS2
-          force_off SERIO_SERPORT
           force_off KEYBOARD_ATKBD
           force_off INPUT_VIVALDIFMAP
 
-          # SCSI
+          # Misc bloat
           force_off SCSI
           force_off SCSI_MOD
-
-          # PNP
           force_off PNP
           force_off PNPACPI
-          force_off PNP_DEBUG_MESSAGES
-
-          # Thermal framework
           force_off THERMAL
-          force_off THERMAL_GOV_STEP_WISE
-          force_off THERMAL_GOV_USER_SPACE
           force_off PINCTRL
-
-          # Misc bloat
           force_off VGA_ARB
           force_off VGA_CONSOLE
           force_off FONT_8x8
-          force_off ALLOW_DEV_COREDUMP
           force_off FW_LOADER
           force_off VM_EVENT_COUNTERS
           force_off HOTPLUG_CPU
-          force_off HOTPLUG_SMT
-          force_off HOTPLUG_CORE_SYNC
-          force_off HOTPLUG_SPLIT_STARTUP
-          force_off HOTPLUG_PARALLEL
           force_off EFI_ESRT
-          force_off EDAC_SUPPORT
-          force_off CPU_ISOLATION
-          force_off CONTEXT_TRACKING
-          force_off CONTEXT_TRACKING_IDLE
-          force_off X86_16BIT
-          force_off X86_VSYSCALL_EMULATION
-          force_off LEGACY_VSYSCALL_XONLY
-          force_off X86_5LEVEL
-          force_off SCHED_MC_PRIO
-          force_off RANDOMIZE_KSTACK_OFFSET
-          force_off CLOCKSOURCE_WATCHDOG
-          force_off RTC_LIB
-          force_off RTC_MC146818_LIB
-          force_off GENERIC_CPU_VULNERABILITIES
-          force_off FIRMWARE_MEMMAP
-          force_off DMI_SCAN_MACHINE_NON_EFI_FALLBACK
-          force_off PCI_LABEL
-          force_off PCI_LOCKLESS_CONFIG
+          force_off DRM_PANEL_ORIENTATION_QUIRKS
           force_off PCI_QUIRKS
-          force_off X86_ESPFIX64
-          force_off PCSPKR_PLATFORM
-          force_off ISA_DMA_API
-          force_off GENERIC_ISA_DMA
           force_off XZ_DEC_POWERPC
           force_off XZ_DEC_IA64
           force_off XZ_DEC_ARM
@@ -169,73 +128,69 @@ jobs:
           force_off XZ_DEC_SPARC
           force_off CRYPTO_LIB_BLAKE2S_GENERIC
           force_off SHMEM
-          force_off LOG_CPU_MAX_BUF_SHIFT
-
-          # Intel-specific code on AMD machine
-          force_off CPU_SUP_INTEL
-          force_off X86_CPU_RESCTRL
-          force_off PERF_EVENTS_AMD_POWER
-          force_off X86_MCE_INTEL
-
-          # Crypto self-tests and blake2s (nothing needs this)
-          force_off CRYPTO_MANAGER_DISABLE_TESTS
-          force_off CRYPTO_BLAKE2S
-          force_off CRYPTO_LIB_BLAKE2S
-          force_off CRYPTO_LIB_BLAKE2S_GENERIC
-          force_off CRYPTO_SELFTESTS
-
-          # DMI quirk tables (massive, mostly for obscure hardware)
-          force_off DMI_SCAN_MACHINE_NON_EFI_FALLBACK
-          force_off ACPI_CUSTOM_DSDT
-
-          # PCI quirks table
-          force_off PCI_QUIRKS
-
-          # Coredump still sneaking in
-          force_off COREDUMP
-          force_off ELF_CORE
-          force_off ELFCORE
-          force_off CORE_DUMP_DEFAULT_ELF_HEADERS
-
-          # DRM panel orientation still compiled in via FB path
-          force_off DRM_PANEL_ORIENTATION_QUIRKS
-
-          # BTS (branch tracing, debug feature)
-          force_off X86_BTS
-
-          # CPU vulnerability mitigations reporting (not needed for shell)
+          force_off RANDOMIZE_KSTACK_OFFSET
           force_off GENERIC_CPU_VULNERABILITIES
-          force_off CPU_MITIGATIONS
 
           echo "=== Force-off complete ==="
 
-      - name: Show config summary
+      - name: Build 32-bit kernel
         run: |
           cd linux-6.6
-          echo "=== Total options enabled ==="
-          grep "^CONFIG_" .config | wc -l
+          make ARCH=i386 -j$(nproc) bzImage 2>&1 | tail -30
 
-      - name: Build kernel
+      - name: Check kernel size
         run: |
-          cd linux-6.6
-          make -j$(nproc) bzImage 2>&1 | tail -30
+          ls -lh linux-6.6/arch/x86/boot/bzImage
+          du -k linux-6.6/arch/x86/boot/bzImage | awk '{print "Kernel size: "$1" KB"}'
 
       - name: Bloat report
         run: |
           cd linux-6.6
-          echo "=== Top 60 largest symbols ==="
-          nm --size-sort -r vmlinux | awk '{print $1, $3}' | head -60
+          echo "=== Top 40 largest symbols ==="
+          nm --size-sort -r vmlinux | awk '{print $1, $3}' | head -40
           echo "=== Section sizes ==="
           size vmlinux
 
-      - name: Report size
+      - name: Build floppy image
         run: |
-          ls -lh linux-6.6/arch/x86/boot/bzImage
-          du -k linux-6.6/arch/x86/boot/bzImage | awk '{print "Size: "$1" KB"}'
+          KERNEL=linux-6.6/arch/x86/boot/bzImage
+          KERNEL_SIZE=$(du -k $KERNEL | cut -f1)
+          echo "Kernel size: ${KERNEL_SIZE}KB"
 
-      - name: Upload vmlinuz
+          # Create 1.44MB floppy image (FAT12, 80 tracks, 18 sectors, 2 heads)
+          dd if=/dev/zero of=floppy.img bs=1024 count=1440
+          mkfs.fat -F 12 -n "FLOPPY" floppy.img
+
+          # Install SYSLINUX bootloader
+          syslinux --install floppy.img
+
+          # Copy kernel onto floppy
+          mcopy -i floppy.img $KERNEL ::vmlinuz
+
+          # Create syslinux config
+          cat > syslinux.cfg << 'EOF'
+          DEFAULT linux
+          LABEL linux
+            KERNEL vmlinuz
+            APPEND quiet
+          EOF
+          mcopy -i floppy.img syslinux.cfg ::syslinux.cfg
+
+          # Report floppy usage
+          echo "=== Floppy contents ==="
+          mdir -i floppy.img
+          USED=$(du -k floppy.img | cut -f1)
+          echo "Image size: ${USED}KB / 1440KB"
+
+      - name: Upload floppy image
         uses: actions/upload-artifact@v4
         with:
-          name: vmlinuz
+          name: floppy
+          path: floppy.img
+  
+      - name: Upload kernel only
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlinuz-32bit
           path: linux-6.6/arch/x86/boot/bzImage
           retention-days: 30
