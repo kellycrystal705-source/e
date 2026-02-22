@@ -1,0 +1,52 @@
+name: Build Minimal Kernel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libncurses-dev bison flex \
+            libssl-dev libelf-dev bc xz-utils wget
+
+      - name: Download kernel source (6.6 LTS)
+        run: |
+          wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.tar.xz
+          tar -xf linux-6.6.tar.xz
+          rm linux-6.6.tar.xz  # save disk space
+
+      - name: Apply config
+        run: |
+          cp minimal_kernel.config linux-6.6/.config
+          cd linux-6.6
+          make olddefconfig
+
+      - name: Build kernel
+        run: |
+          cd linux-6.6
+          make -j$(nproc) bzImage 2>&1 | tail -20
+
+      - name: Check size
+        run: |
+          ls -lh linux-6.6/arch/x86/boot/bzImage
+          size=$(du -k linux-6.6/arch/x86/boot/bzImage | cut -f1)
+          echo "Size: ${size}KB"
+
+      - name: Upload vmlinuz
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlinuz
+          path: linux-6.6/arch/x86/boot/bzImage
+          retention-days: 30
