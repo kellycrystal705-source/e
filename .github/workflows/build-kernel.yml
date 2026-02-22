@@ -39,19 +39,7 @@ jobs:
       - name: Patch kernel source to remove large static tables
         run: |
           cd linux-6.6
-
-          # Remove Intel early CPU ID table (saves ~13KB)
-          sed -i 's/static const struct x86_cpu_id intel_early_ids\[\]/static const struct x86_cpu_id intel_early_ids[] __attribute__((unused))/' arch/x86/kernel/cpu/match.c 2>/dev/null || true
-
-          # Remove efifb DMI table (saves ~13KB) - not needed for BIOS boot
-          sed -i '/efifb_dmi_system_table/,/^};/{s/^/\/\//}' drivers/video/fbdev/efifb.c 2>/dev/null || true
-
-          # Remove reboot DMI table entries (saves ~13KB)
-          sed -i 's/static struct dmi_system_id reboot_dmi_table/static struct dmi_system_id reboot_dmi_table[] __attribute__((unused)); static struct dmi_system_id reboot_dmi_table_unused/' arch/x86/kernel/reboot.c 2>/dev/null || true
-
-          # Remove panel orientation quirks table (saves ~13KB)
-          # Already disabled via DRM=n but double check
-          echo "Source patches applied"
+          python3 ../patch_kernel.py
 
       - name: Build 32-bit config
         run: |
@@ -162,9 +150,7 @@ jobs:
 
       - name: Build minimal initramfs
         run: |
-          # Get static busybox from apt (reliable, no download issues)
-          sudo apt-get install -y busybox-static
-          cp $(which busybox) ./busybox
+          # Use busybox binary committed to repo
           chmod +x busybox
 
           # Build initramfs directory structure
@@ -251,6 +237,7 @@ jobs:
         with:
           name: floppy
           path: floppy.img
+          retention-days: 30
 
       - name: Upload kernel
         uses: actions/upload-artifact@v4
