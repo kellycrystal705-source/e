@@ -1,7 +1,7 @@
 # Kernel config fragment - merged onto allnoconfig
-# Everything not listed here is OFF
-# Target: USB shell, text display, keyboard, FAT/ext4 on USB
-# Hardware: AMD Ryzen 5 3500U, HP 85DD, xHCI USB
+# Target: HP 85DD, AMD Ryzen 5 3500U
+# Use case: USB shell, FAT32, text display, keyboard (HID covers both built-in + USB)
+# Kernel 6.6 LTS
 
 # --- 64-bit x86 ---
 CONFIG_64BIT=y
@@ -14,14 +14,14 @@ CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 CONFIG_KERNEL_XZ=y
 CONFIG_EMBEDDED=y
 
-# --- CPU / AMD ---
+# --- CPU / AMD only ---
 CONFIG_MZEN=y
 CONFIG_MICROCODE=y
 CONFIG_MICROCODE_AMD=y
 CONFIG_X86_LOCAL_APIC=y
 CONFIG_X86_IO_APIC=y
 
-# --- ACPI (Ryzen needs this or it will overheat/crash) ---
+# --- ACPI (Ryzen needs this) ---
 CONFIG_ACPI=y
 CONFIG_ACPI_SLEEP=y
 CONFIG_ACPI_PROCESSOR=y
@@ -34,22 +34,22 @@ CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
 CONFIG_X86_ACPI_CPUFREQ=y
 CONFIG_X86_AMD_PLATFORM_DEVICE=y
 
-# --- PCI (AMD USB controller sits on PCIe) ---
+# --- PCI (AMD USB controller needs this) ---
 CONFIG_PCI=y
 CONFIG_PCI_DIRECT=y
 CONFIG_PCI_MMCONFIG=y
 CONFIG_PCI_MSI=y
 CONFIG_PCIEPORTBUS=y
 
-# --- EFI (HP uses UEFI) ---
+# --- EFI ---
 CONFIG_EFI=y
-CONFIG_EFI_STUB=y
+# Dropped EFI_STUB - grub loads the kernel, stub not needed
 
 # --- Memory ---
 CONFIG_SPARSEMEM=y
 CONFIG_SPARSEMEM_VMEMMAP=y
 
-# --- Block layer (needed for USB storage) ---
+# --- Block (USB storage needs this) ---
 CONFIG_BLOCK=y
 
 # --- USB ---
@@ -58,7 +58,7 @@ CONFIG_USB=y
 CONFIG_USB_XHCI_HCD=y
 CONFIG_USB_STORAGE=y
 
-# --- Display (efifb - uses what UEFI sets up, no GPU driver) ---
+# --- Display (efifb, no GPU driver) ---
 CONFIG_FB=y
 CONFIG_FB_CORE=y
 CONFIG_FB_EFI=y
@@ -71,23 +71,18 @@ CONFIG_VT_CONSOLE=y
 CONFIG_DUMMY_CONSOLE=y
 CONFIG_FONT_8x16=y
 
-# --- Keyboard ---
+# --- Keyboard via HID only (covers USB + built-in laptop keyboard) ---
+# Dropped SERIO / i8042 / ATKBD (PS/2 legacy stack - not needed)
 CONFIG_INPUT=y
 CONFIG_INPUT_KEYBOARD=y
-CONFIG_KEYBOARD_ATKBD=y
-CONFIG_SERIO=y
-CONFIG_SERIO_I8042=y
-CONFIG_SERIO_LIBPS2=y
 CONFIG_HID=y
 CONFIG_HID_GENERIC=y
 CONFIG_USB_HID=y
 
-# --- Filesystems ---
-CONFIG_EXT4_FS=y
+# --- Filesystems - FAT32 only, dropped ext4 ---
 CONFIG_VFAT_FS=y
 CONFIG_FAT_FS=y
 CONFIG_NLS_CODEPAGE_437=y
-CONFIG_NLS_ISO8859_1=y
 CONFIG_NLS_UTF8=y
 CONFIG_TMPFS=y
 CONFIG_PROC_FS=y
@@ -104,7 +99,7 @@ CONFIG_RD_GZIP=y
 CONFIG_BINFMT_ELF=y
 CONFIG_BINFMT_SCRIPT=y
 
-# --- Syscalls needed by busybox/shell ---
+# --- Syscalls for busybox/shell ---
 CONFIG_MULTIUSER=y
 CONFIG_SYSCTL=y
 CONFIG_FUTEX=y
@@ -116,6 +111,6 @@ CONFIG_POSIX_TIMERS=y
 CONFIG_TTY=y
 CONFIG_UNIX98_PTYS=y
 
-# --- Printk (keep - essential for seeing boot errors) ---
+# --- Printk (smaller buffer) ---
 CONFIG_PRINTK=y
-CONFIG_LOG_BUF_SHIFT=12
+CONFIG_LOG_BUF_SHIFT=10
