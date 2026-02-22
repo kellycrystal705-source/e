@@ -27,12 +27,125 @@ jobs:
           tar -xf linux-6.6.tar.xz
           rm linux-6.6.tar.xz
 
-      - name: Build config from allnoconfig + fragment
+      - name: Build config
         run: |
           cd linux-6.6
           make allnoconfig
           ./scripts/kconfig/merge_config.sh .config ../kernel.fragment
           make olddefconfig
+
+      - name: Force-remove unwanted options with sed
+        run: |
+          cd linux-6.6
+          # This runs AFTER olddefconfig so these are truly removed
+          # Pattern: change CONFIG_X=y to # CONFIG_X is not set
+          force_off() {
+            local opt=$1
+            sed -i "s/^CONFIG_${opt}=.*$/# CONFIG_${opt} is not set/" .config
+          }
+
+          # Debug/trace bloat
+          force_off KALLSYMS
+          force_off PERF_EVENTS
+          force_off BUG
+          force_off ELF_CORE
+          force_off COREDUMP
+          force_off SLUB_DEBUG
+          force_off DEBUG_MEMORY_INIT
+          force_off DEBUG_BUGVERBOSE
+          force_off STACKTRACE
+          force_off STACKDEPOT
+          force_off FRAME_POINTER
+
+          # Unneeded syscalls
+          force_off IO_URING
+          force_off AIO
+          force_off SGETMASK_SYSCALL
+          force_off SYSFS_SYSCALL
+          force_off FHANDLE
+          force_off ADVISE_SYSCALLS
+          force_off MEMBARRIER
+          force_off RSEQ
+          force_off CACHESTAT_SYSCALL
+          force_off NAMESPACES
+          force_off MEMFD_CREATE
+          force_off SECRETMEM
+          force_off MODIFY_LDT_SYSCALL
+
+          # Wrong CPU vendors
+          force_off CPU_SUP_INTEL
+          force_off CPU_SUP_HYGON
+          force_off CPU_SUP_CENTAUR
+          force_off CPU_SUP_ZHAOXIN
+          force_off X86_INTEL_MEMORY_PROTECTION_KEYS
+          force_off X86_INTEL_TSX_MODE_OFF
+          force_off X86_VMX_FEATURE_NAMES
+          force_off IA32_FEAT_CTL
+          force_off X86_5LEVEL
+          force_off PERF_EVENTS_INTEL_UNCORE
+          force_off PERF_EVENTS_INTEL_RAPL
+          force_off PERF_EVENTS_INTEL_CSTATE
+          force_off X86_PKG_TEMP_THERMAL
+          force_off INTEL_TCC
+          force_off X86_INTEL_PSTATE
+
+          # ACPI extras
+          force_off ACPI_CPPC_LIB
+          force_off ACPI_HOTPLUG_CPU
+          force_off ACPI_CONTAINER
+          force_off ACPI_HOTPLUG_IOAPIC
+          force_off ACPI_TABLE_UPGRADE
+          force_off ACPI_PRMT
+          force_off ACPI_PCC
+          force_off ACPI_LPIT
+          force_off ACPI_AC
+          force_off ACPI_BATTERY
+          force_off ACPI_FAN
+          force_off ACPI_SLEEP
+          force_off MAILBOX
+          force_off PCC
+
+          # PS/2 keyboard stack (HID covers everything)
+          force_off SERIO
+          force_off SERIO_I8042
+          force_off SERIO_LIBPS2
+          force_off SERIO_SERPORT
+          force_off KEYBOARD_ATKBD
+          force_off INPUT_VIVALDIFMAP
+
+          # SCSI (no SCSI devices)
+          force_off SCSI
+          force_off SCSI_MOD
+
+          # PNP
+          force_off PNP
+          force_off PNPACPI
+          force_off PNP_DEBUG_MESSAGES
+
+          # Thermal framework (ACPI_THERMAL handles AMD directly)
+          force_off THERMAL
+          force_off THERMAL_GOV_STEP_WISE
+          force_off THERMAL_GOV_USER_SPACE
+          force_off PINCTRL
+
+          # Misc bloat
+          force_off VGA_ARB
+          force_off VGA_CONSOLE
+          force_off FONT_8x8
+          force_off ALLOW_DEV_COREDUMP
+          force_off FW_LOADER
+          force_off VM_EVENT_COUNTERS
+          force_off HOTPLUG_CPU
+          force_off EFI_ESRT
+          force_off EDAC_SUPPORT
+          force_off CPU_ISOLATION
+          force_off CONTEXT_TRACKING
+          force_off CONTEXT_TRACKING_IDLE
+          force_off X86_16BIT
+          force_off X86_VSYSCALL_EMULATION
+          force_off LEGACY_VSYSCALL_XONLY
+
+          echo "=== Force-off complete ==="
 
       - name: Show config summary
         run: |
@@ -45,7 +158,7 @@ jobs:
       - name: Build kernel
         run: |
           cd linux-6.6
-          make -j$(nproc) bzImage 2>&1 | tail -20
+          make -j$(nproc) bzImage 2>&1 | tail -30
 
       - name: Report size
         run: |
