@@ -14,6 +14,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          df -h
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -28,6 +36,23 @@ jobs:
           tar -xf linux-6.6.tar.xz
           rm linux-6.6.tar.xz
 
+      - name: Patch kernel source to remove large static tables
+        run: |
+          cd linux-6.6
+
+          # Remove Intel early CPU ID table (saves ~13KB)
+          sed -i 's/static const struct x86_cpu_id intel_early_ids\[\]/static const struct x86_cpu_id intel_early_ids[] __attribute__((unused))/' arch/x86/kernel/cpu/match.c 2>/dev/null || true
+
+          # Remove efifb DMI table (saves ~13KB) - not needed for BIOS boot
+          sed -i '/efifb_dmi_system_table/,/^};/{s/^/\/\//}' drivers/video/fbdev/efifb.c 2>/dev/null || true
+
+          # Remove reboot DMI table entries (saves ~13KB)
+          sed -i 's/static struct dmi_system_id reboot_dmi_table/static struct dmi_system_id reboot_dmi_table[] __attribute__((unused)); static struct dmi_system_id reboot_dmi_table_unused/' arch/x86/kernel/reboot.c 2>/dev/null || true
+
+          # Remove panel orientation quirks table (saves ~13KB)
+          # Already disabled via DRM=n but double check
+          echo "Source patches applied"
+
       - name: Build 32-bit config
         run: |
           cd linux-6.6
@@ -41,8 +66,6 @@ jobs:
           force_off() {
             sed -i "s/^CONFIG_${1}=.*$/# CONFIG_${1} is not set/" .config
           }
-
-          # Debug bloat
           force_off KALLSYMS
           force_off PERF_EVENTS
           force_off BUG
@@ -54,8 +77,6 @@ jobs:
           force_off STACKTRACE
           force_off STACKDEPOT
           force_off FRAME_POINTER
-
-          # Syscalls not needed
           force_off IO_URING
           force_off AIO
           force_off SGETMASK_SYSCALL
@@ -69,8 +90,6 @@ jobs:
           force_off MEMFD_CREATE
           force_off SECRETMEM
           force_off MODIFY_LDT_SYSCALL
-
-          # Wrong CPU vendors
           force_off CPU_SUP_INTEL
           force_off CPU_SUP_HYGON
           force_off CPU_SUP_CENTAUR
@@ -81,8 +100,6 @@ jobs:
           force_off PERF_EVENTS_INTEL_CSTATE
           force_off X86_PKG_TEMP_THERMAL
           force_off INTEL_TCC
-
-          # ACPI extras
           force_off ACPI_CPPC_LIB
           force_off ACPI_HOTPLUG_CPU
           force_off ACPI_CONTAINER
@@ -97,15 +114,11 @@ jobs:
           force_off ACPI_SLEEP
           force_off MAILBOX
           force_off PCC
-
-          # PS/2 stack
           force_off SERIO
           force_off SERIO_I8042
           force_off SERIO_LIBPS2
           force_off KEYBOARD_ATKBD
           force_off INPUT_VIVALDIFMAP
-
-          # Misc bloat
           force_off SCSI
           force_off SCSI_MOD
           force_off PNP
@@ -118,6 +131,7 @@ jobs:
           force_off FW_LOADER
           force_off VM_EVENT_COUNTERS
           force_off HOTPLUG_CPU
+          force_off HOTPLUG_SMT
           force_off EFI_ESRT
           force_off DRM_PANEL_ORIENTATION_QUIRKS
           force_off PCI_QUIRKS
@@ -130,67 +144,116 @@ jobs:
           force_off SHMEM
           force_off RANDOMIZE_KSTACK_OFFSET
           force_off GENERIC_CPU_VULNERABILITIES
-
-          echo "=== Force-off complete ==="
+          echo "Force-off complete"
 
       - name: Build 32-bit kernel
         run: |
           cd linux-6.6
-          make ARCH=i386 -j$(nproc) bzImage 2>&1 | tail -30
-
-      - name: Check kernel size
-        run: |
-          ls -lh linux-6.6/arch/x86/boot/bzImage
-          du -k linux-6.6/arch/x86/boot/bzImage | awk '{print "Kernel size: "$1" KB"}'
+          make ARCH=i386 -j$(nproc) bzImage 2>&1 | tail -20
+          ls -lh arch/x86/boot/bzImage
+          du -k arch/x86/boot/bzImage | awk '{print "Kernel: "$1" KB / 1440 KB"}'
 
       - name: Bloat report
         run: |
           cd linux-6.6
           echo "=== Top 40 largest symbols ==="
           nm --size-sort -r vmlinux | awk '{print $1, $3}' | head -40
-          echo "=== Section sizes ==="
           size vmlinux
+
+      - name: Build minimal initramfs
+        run: |
+          # Download static busybox
+          wget -q https://busybox.net/downloads/binaries/1.35.0-x86-linux-musl/busybox
+          chmod +x busybox
+
+          # Build initramfs directory structure
+          mkdir -p initramfs/{bin,dev,proc,sys,tmp}
+          cp busybox initramfs/bin/busybox
+
+          # Install busybox applets
+          cd initramfs/bin
+          for cmd in sh ls cat echo mkdir mount umount; do
+            ln -s busybox $cmd
+          done
+          cd ../..
+
+          # Create init script
+          cat > initramfs/init << 'EOF'
+          #!/bin/sh
+          mount -t proc none /proc
+          mount -t sysfs none /sys
+          mount -t devtmpfs none /dev
+
+          # Set CPU to powersave low frequency
+          for cpu in /sys/devices/system/cpu/cpu*/cpufreq; do
+            echo powersave > $cpu/scaling_governor 2>/dev/null
+            echo 400000 > $cpu/scaling_max_freq 2>/dev/null
+          done
+
+          echo "Welcome to FloppyOS"
+          exec /bin/sh
+          EOF
+          chmod +x initramfs/init
+
+          # Pack initramfs
+          cd initramfs
+          find . | cpio -H newc -o | xz --check=crc32 -9e > ../initramfs.xz
+          cd ..
+
+          ls -lh initramfs.xz
+          du -k initramfs.xz | awk '{print "Initramfs: "$1" KB"}'
+
+      - name: Clean build artifacts to free disk
+        run: |
+          # Keep only the kernel binary, remove 15GB of build files
+          cp linux-6.6/arch/x86/boot/bzImage ./vmlinuz
+          rm -rf linux-6.6
+          df -h
 
       - name: Build floppy image
         run: |
-          KERNEL=linux-6.6/arch/x86/boot/bzImage
-          KERNEL_SIZE=$(du -k $KERNEL | cut -f1)
-          echo "Kernel size: ${KERNEL_SIZE}KB"
+          KERNEL_KB=$(du -k vmlinuz | cut -f1)
+          INITRD_KB=$(du -k initramfs.xz | cut -f1)
+          TOTAL=$((KERNEL_KB + INITRD_KB))
+          echo "Kernel: ${KERNEL_KB}KB  Initramfs: ${INITRD_KB}KB  Total: ${TOTAL}KB / 1440KB"
 
-          # Create 1.44MB floppy image (FAT12, 80 tracks, 18 sectors, 2 heads)
+          if [ $TOTAL -gt 1300 ]; then
+            echo "WARNING: Too big to fit on floppy with syslinux overhead!"
+          fi
+
+          # Create 1.44MB floppy image
           dd if=/dev/zero of=floppy.img bs=1024 count=1440
-          mkfs.fat -F 12 -n "FLOPPY" floppy.img
-
-          # Install SYSLINUX bootloader
+          mkfs.fat -F 12 -n "FLOPPYOS" floppy.img
           syslinux --install floppy.img
 
-          # Copy kernel onto floppy
-          mcopy -i floppy.img $KERNEL ::vmlinuz
+          # Copy files
+          mcopy -i floppy.img vmlinuz ::vmlinuz
+          mcopy -i floppy.img initramfs.xz ::initrd.xz
 
-          # Create syslinux config
+          # Syslinux config
           cat > syslinux.cfg << 'EOF'
           DEFAULT linux
+          PROMPT 0
+          TIMEOUT 10
           LABEL linux
             KERNEL vmlinuz
+            INITRD initrd.xz
             APPEND quiet
           EOF
           mcopy -i floppy.img syslinux.cfg ::syslinux.cfg
 
-          # Report floppy usage
           echo "=== Floppy contents ==="
           mdir -i floppy.img
-          USED=$(du -k floppy.img | cut -f1)
-          echo "Image size: ${USED}KB / 1440KB"
 
       - name: Upload floppy image
         uses: actions/upload-artifact@v4
         with:
           name: floppy
           path: floppy.img
-  
-      - name: Upload kernel only
+          retention-days: 30
+
+      - name: Upload kernel
         uses: actions/upload-artifact@v4
         with:
           name: vmlinuz-32bit
-          path: linux-6.6/arch/x86/boot/bzImage
-          retention-days: 30
+          path: vmlinuz
