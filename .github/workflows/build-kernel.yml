@@ -162,8 +162,9 @@ jobs:
 
       - name: Build minimal initramfs
         run: |
-          # Download static busybox
-          wget -q https://busybox.net/downloads/binaries/1.35.0-x86-linux-musl/busybox
+          # Get static busybox from apt (reliable, no download issues)
+          sudo apt-get install -y busybox-static
+          cp $(which busybox) ./busybox
           chmod +x busybox
 
           # Build initramfs directory structure
@@ -250,10 +251,10 @@ jobs:
         with:
           name: floppy
           path: floppy.img
-          retention-days: 30
 
       - name: Upload kernel
         uses: actions/upload-artifact@v4
         with:
           name: vmlinuz-32bit
           path: vmlinuz
+          retention-days: 30
