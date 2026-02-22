@@ -1,0 +1,63 @@
+name: Build Minimal Kernel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential libncurses-dev bison flex \
+            libssl-dev libelf-dev bc xz-utils wget
+
+      - name: Download kernel 6.6 LTS
+        run: |
+          wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.tar.xz
+          tar -xf linux-6.6.tar.xz
+          rm linux-6.6.tar.xz
+
+      - name: Build config from allnoconfig + our fragment
+        run: |
+          cd linux-6.6
+          # Start with everything OFF
+          make allnoconfig
+          # Merge our explicit options on top
+          ./scripts/kconfig/merge_config.sh .config ../kernel.fragment
+          # Fill any remaining dependencies automatically
+          make olddefconfig
+
+      - name: Show final config summary
+        run: |
+          cd linux-6.6
+          grep "^CONFIG_" .config | wc -l
+          echo "--- Key options ---"
+          grep -E "^CONFIG_(DRM|FB|USB|EXT4|VFAT|ACPI|EFI|VT|HID|INPUT|PRINTK|KERNEL_XZ|CC_OPTIMIZE)" .config
+
+      - name: Build kernel
+        run: |
+          cd linux-6.6
+          make -j$(nproc) bzImage 2>&1 | tail -30
+
+      - name: Report size
+        run: |
+          ls -lh linux-6.6/arch/x86/boot/bzImage
+          size=$(du -k linux-6.6/arch/x86/boot/bzImage | cut -f1)
+          echo "Final size: ${size} KB (target: ~1300 KB)"
+
+      - name: Upload vmlinuz
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlinuz
+          path: linux-6.6/arch/x86/boot/bzImage
+          retention-days: 30
