@@ -1,66 +1,31 @@
-# Kernel config fragment - merged onto allnoconfig
-# Target: HP 85DD, AMD Ryzen 5 3500U
+# Kernel config fragment - 32-bit i386 floppy boot
+# Target: Legacy BIOS/CSM, VESA framebuffer, USB, FAT12/FAT32
+# No EFI, no 64-bit overhead
 # Kernel 6.6 LTS
-# This version explicitly kills everything that snuck in last build
 
-# --- 64-bit x86 ---
-CONFIG_64BIT=y
-CONFIG_X86_64=y
-CONFIG_SMP=y
-CONFIG_NR_CPUS=8
+# --- 32-bit x86 ---
+CONFIG_X86_32=y
+# CONFIG_64BIT is not set
 
 # --- Size ---
 CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 CONFIG_KERNEL_XZ=y
 CONFIG_EMBEDDED=y
 
-# --- CPU: AMD only, kill all other vendor support ---
-CONFIG_MZEN=y
+# --- CPU: AMD Zen+ but generic enough for other machines ---
+CONFIG_M686=y
+CONFIG_X86_USE_3DNOW=y
 CONFIG_MICROCODE=y
 CONFIG_MICROCODE_AMD=y
 CONFIG_CPU_SUP_AMD=y
 CONFIG_CPU_SUP_INTEL=n
-CONFIG_CPU_SUP_HYGON=n
-CONFIG_CPU_SUP_CENTAUR=n
-CONFIG_CPU_SUP_ZHAOXIN=n
 CONFIG_X86_LOCAL_APIC=y
 CONFIG_X86_IO_APIC=y
-# Kill Intel-specific perf/thermal pulled in by default
-CONFIG_PERF_EVENTS=n
-CONFIG_PERF_EVENTS_INTEL_UNCORE=n
-CONFIG_PERF_EVENTS_INTEL_RAPL=n
-CONFIG_PERF_EVENTS_INTEL_CSTATE=n
-CONFIG_X86_PKG_TEMP_THERMAL=n
-CONFIG_INTEL_TCC=n
-CONFIG_X86_MCE=n
 
-# --- Kill debug/crash/trace bloat ---
-CONFIG_KALLSYMS=n
-CONFIG_BUG=n
-CONFIG_ELF_CORE=n
-CONFIG_COREDUMP=n
-CONFIG_SLUB_DEBUG=n
-CONFIG_DEBUG_MEMORY_INIT=n
-
-# --- Kill unneeded syscalls ---
-CONFIG_IO_URING=n
-CONFIG_AIO=n
-CONFIG_SGETMASK_SYSCALL=n
-CONFIG_SYSFS_SYSCALL=n
-CONFIG_FHANDLE=n
-CONFIG_ADVISE_SYSCALLS=n
-CONFIG_MEMBARRIER=n
-CONFIG_RSEQ=n
-CONFIG_CACHESTAT_SYSCALL=n
-
-# --- Kill namespace support (not needed for single shell) ---
-CONFIG_NAMESPACES=n
-
-# --- ACPI: minimal, kill CPPC (pulls in MAILBOX/PCC) and hotplug ---
+# --- ACPI (still needed for Ryzen) ---
 CONFIG_ACPI=y
 CONFIG_ACPI_PROCESSOR=y
 CONFIG_ACPI_PROCESSOR_IDLE=y
-CONFIG_ACPI_PROCESSOR_CSTATE=y
 CONFIG_ACPI_THERMAL=y
 CONFIG_ACPI_BUTTON=y
 CONFIG_CPU_IDLE=y
@@ -69,33 +34,6 @@ CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
 CONFIG_X86_ACPI_CPUFREQ=y
 CONFIG_X86_AMD_PLATFORM_DEVICE=y
-# Kill things that snuck in
-CONFIG_ACPI_CPPC_LIB=n
-CONFIG_ACPI_HOTPLUG_CPU=n
-CONFIG_ACPI_CONTAINER=n
-CONFIG_ACPI_HOTPLUG_IOAPIC=n
-CONFIG_ACPI_TABLE_UPGRADE=n
-CONFIG_ACPI_PRMT=n
-CONFIG_ACPI_PCC=n
-CONFIG_ACPI_SPCR_TABLE=n
-CONFIG_ACPI_LPIT=n
-CONFIG_ACPI_AC=n
-CONFIG_ACPI_BATTERY=n
-CONFIG_ACPI_FAN=n
-CONFIG_ACPI_SLEEP=n
-CONFIG_MAILBOX=n
-CONFIG_PCC=n
-
-# --- Kill SCSI (pulled in silently, we have no SCSI devices) ---
-CONFIG_SCSI=n
-CONFIG_SCSI_MOD=n
-
-# --- Kill PNP/PNPACPI ---
-CONFIG_PNP=n
-CONFIG_PNPACPI=n
-
-# --- Kill thermal framework (ACPI thermal handles it directly) ---
-CONFIG_THERMAL=n
 
 # --- PCI ---
 CONFIG_PCI=y
@@ -103,17 +41,14 @@ CONFIG_PCI_DIRECT=y
 CONFIG_PCI_MMCONFIG=y
 CONFIG_PCI_MSI=y
 CONFIG_PCIEPORTBUS=y
-CONFIG_PCIEASPM=n
 
-# --- EFI (minimal) ---
-CONFIG_EFI=y
+# --- NO EFI (legacy BIOS boot) ---
+CONFIG_EFI=n
 CONFIG_EFI_STUB=n
-CONFIG_EFIVAR_FS=n
-CONFIG_EFI_ESRT=n
 
-# --- Memory ---
-CONFIG_SPARSEMEM=y
-CONFIG_SPARSEMEM_VMEMMAP=y
+# --- Memory: 32-bit, keep it simple ---
+CONFIG_HIGHMEM4G=y
+CONFIG_NOHIGHMEM=n
 
 # --- Block ---
 CONFIG_BLOCK=y
@@ -124,31 +59,27 @@ CONFIG_USB=y
 CONFIG_USB_XHCI_HCD=y
 CONFIG_USB_STORAGE=y
 
-# --- Display: pure efifb, no DRM ---
-CONFIG_DRM=n
+# --- Display: VESA framebuffer (works with legacy BIOS, no EFI needed) ---
 CONFIG_FB=y
 CONFIG_FB_CORE=y
-CONFIG_FB_EFI=y
+CONFIG_FB_VESA=y
+CONFIG_VIDEO_SELECT=y
 CONFIG_FRAMEBUFFER_CONSOLE=y
 CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
 CONFIG_VT=y
 CONFIG_VT_CONSOLE=y
 CONFIG_DUMMY_CONSOLE=y
 CONFIG_FONT_8x16=y
+CONFIG_DRM=n
 
-# --- Keyboard: HID only, kill PS/2 stack ---
+# --- Keyboard: HID only ---
 CONFIG_INPUT=y
 CONFIG_INPUT_KEYBOARD=y
 CONFIG_HID=y
 CONFIG_HID_GENERIC=y
 CONFIG_USB_HID=y
-CONFIG_SERIO=n
-CONFIG_SERIO_I8042=n
-CONFIG_SERIO_LIBPS2=n
-CONFIG_KEYBOARD_ATKBD=n
-CONFIG_INPUT_VIVALDIFMAP=n
 
-# --- Filesystems: FAT32 only ---
+# --- Filesystems: FAT only (floppy is FAT12) ---
 CONFIG_VFAT_FS=y
 CONFIG_FAT_FS=y
 CONFIG_NLS_CODEPAGE_437=y
@@ -159,21 +90,16 @@ CONFIG_SYSFS=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 
-# --- initramfs: XZ and GZIP only, kill the rest ---
+# --- initramfs ---
 CONFIG_BLK_DEV_INITRD=y
 CONFIG_RD_XZ=y
 CONFIG_RD_GZIP=y
-CONFIG_RD_BZIP2=n
-CONFIG_RD_LZMA=n
-CONFIG_RD_LZO=n
-CONFIG_RD_LZ4=n
-CONFIG_RD_ZSTD=n
 
 # --- Executable formats ---
 CONFIG_BINFMT_ELF=y
 CONFIG_BINFMT_SCRIPT=y
 
-# --- Syscalls for busybox/shell ---
+# --- Syscalls for shell ---
 CONFIG_MULTIUSER=y
 CONFIG_SYSCTL=y
 CONFIG_FUTEX=y
@@ -185,6 +111,6 @@ CONFIG_POSIX_TIMERS=y
 CONFIG_TTY=y
 CONFIG_UNIX98_PTYS=y
 
-# --- Printk (tiny buffer) ---
+# --- Printk ---
 CONFIG_PRINTK=y
 CONFIG_LOG_BUF_SHIFT=10
