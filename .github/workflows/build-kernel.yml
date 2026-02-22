@@ -20,6 +20,10 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/share/swift
+          sudo apt-get clean
           df -h
 
       - name: Install dependencies
@@ -39,7 +43,65 @@ jobs:
       - name: Patch kernel source to remove large static tables
         run: |
           cd linux-6.6
-          python3 ../patch_kernel.py
+
+          # Print actual lines so we can see what to match
+          echo "=== reboot.c ===" 
+          grep -n "dmi_system_id reboot_dmi_table" arch/x86/kernel/reboot.c | head -5
+          echo "=== match.c ==="
+          grep -n "intel_early_ids" arch/x86/kernel/cpu/match.c | head -5
+          echo "=== acpi_osi.c ==="
+          grep -n "acpi_osi_dmi_table" drivers/acpi/acpi_osi.c | head -5
+          echo "=== pci acpi.c ==="
+          grep -n "pciprobe_dmi_table" arch/x86/pci/acpi.c | head -5
+
+          # Patch: empty the reboot DMI table body using line numbers
+          # Find start and end lines and delete between them
+          python3 - << 'PYEOF'
+import re, os
+
+def empty_dmi_table(path, table_name):
+    if not os.path.exists(path):
+        print(f"NOT FOUND: {path}")
+        return
+    with open(path, 'r', errors='replace') as f:
+        lines = f.readlines()
+    # Find the table declaration
+    start = None
+    depth = 0
+    end = None
+    for i, line in enumerate(lines):
+        if table_name in line and '[]' in line and start is None:
+            start = i
+            print(f"Found {table_name} at line {i+1} in {path}")
+        if start is not None:
+            depth += line.count('{') - line.count('}')
+            if depth <= 0 and i > start:
+                end = i
+                break
+    if start is None:
+        print(f"PATTERN NOT FOUND: {table_name} in {path}")
+        return
+    if end is None:
+        print(f"Could not find end of table: {table_name}")
+        return
+    # Replace everything between { and } with just a null terminator
+    decl = lines[start]
+    lines[start:end+1] = [decl.rstrip().rstrip('{').rstrip() + '[] = { {0} };
+']
+    # Remove duplicate [] if present
+    lines[start] = re.sub(r'\[\]\s*\[\]', '[]', lines[start])
+    with open(path, 'w') as f:
+        f.writelines(lines)
+    print(f"PATCHED: {table_name} in {path}")
+
+empty_dmi_table('arch/x86/kernel/reboot.c', 'reboot_dmi_table')
+empty_dmi_table('arch/x86/kernel/cpu/match.c', 'intel_early_ids')
+empty_dmi_table('drivers/acpi/acpi_osi.c', 'acpi_osi_dmi_table')
+empty_dmi_table('arch/x86/pci/acpi.c', 'pciprobe_dmi_table')
+empty_dmi_table('drivers/video/fbdev/efifb.c', 'efifb_dmi_system_table')
+empty_dmi_table('drivers/acpi/acpi_lpss.c', 'override_status_ids')
+print("Done")
+PYEOF
 
       - name: Build 32-bit config
         run: |
@@ -237,6 +299,7 @@ jobs:
         with:
           name: floppy
           path: floppy.img
+          retention-days: 30
 
       - name: Upload kernel
         uses: actions/upload-artifact@v4
