@@ -145,6 +145,50 @@ jobs:
           force_off X86_VSYSCALL_EMULATION
           force_off LEGACY_VSYSCALL_XONLY
 
+          # Wrong-arch XZ decoders (we only need X86)
+          force_off XZ_DEC_POWERPC
+          force_off XZ_DEC_IA64
+          force_off XZ_DEC_ARM
+          force_off XZ_DEC_ARMTHUMB
+          force_off XZ_DEC_SPARC
+
+          # Crypto pulled in unnecessarily
+          force_off CRYPTO_LIB_BLAKE2S_GENERIC
+          force_off CRYPTO_LIB_POLY1305_RSIZE
+
+          # Memory/sched features not needed for shell
+          force_off SHMEM
+          force_off VM_EVENT_COUNTERS
+          force_off CPU_ISOLATION
+          force_off HOTPLUG_CPU
+          force_off HOTPLUG_SMT
+          force_off HOTPLUG_CORE_SYNC
+          force_off HOTPLUG_SPLIT_STARTUP
+          force_off HOTPLUG_PARALLEL
+          force_off X86_5LEVEL
+          force_off CONTEXT_TRACKING
+          force_off CONTEXT_TRACKING_IDLE
+          force_off LOG_CPU_MAX_BUF_SHIFT
+          force_off SCHED_MC_PRIO
+          force_off RANDOMIZE_KSTACK_OFFSET
+
+          # Misc
+          force_off CLOCKSOURCE_WATCHDOG
+          force_off RTC_LIB
+          force_off RTC_MC146818_LIB
+          force_off GENERIC_CPU_VULNERABILITIES
+          force_off FIRMWARE_MEMMAP
+          force_off DMI_SCAN_MACHINE_NON_EFI_FALLBACK
+          force_off PCI_LABEL
+          force_off PCI_LOCKLESS_CONFIG
+          force_off PCI_QUIRKS
+          force_off ARCH_SUPPORTS_KEXEC
+          force_off HAVE_LIVEPATCH
+          force_off X86_ESPFIX64
+          force_off PCSPKR_PLATFORM
+          force_off ISA_DMA_API
+          force_off GENERIC_ISA_DMA
+
           echo "=== Force-off complete ==="
 
       - name: Show config summary
