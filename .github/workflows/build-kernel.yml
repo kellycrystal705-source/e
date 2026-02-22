@@ -171,6 +171,42 @@ jobs:
           force_off SHMEM
           force_off LOG_CPU_MAX_BUF_SHIFT
 
+          # Intel-specific code on AMD machine
+          force_off CPU_SUP_INTEL
+          force_off X86_CPU_RESCTRL
+          force_off PERF_EVENTS_AMD_POWER
+          force_off X86_MCE_INTEL
+
+          # Crypto self-tests and blake2s (nothing needs this)
+          force_off CRYPTO_MANAGER_DISABLE_TESTS
+          force_off CRYPTO_BLAKE2S
+          force_off CRYPTO_LIB_BLAKE2S
+          force_off CRYPTO_LIB_BLAKE2S_GENERIC
+          force_off CRYPTO_SELFTESTS
+
+          # DMI quirk tables (massive, mostly for obscure hardware)
+          force_off DMI_SCAN_MACHINE_NON_EFI_FALLBACK
+          force_off ACPI_CUSTOM_DSDT
+
+          # PCI quirks table
+          force_off PCI_QUIRKS
+
+          # Coredump still sneaking in
+          force_off COREDUMP
+          force_off ELF_CORE
+          force_off ELFCORE
+          force_off CORE_DUMP_DEFAULT_ELF_HEADERS
+
+          # DRM panel orientation still compiled in via FB path
+          force_off DRM_PANEL_ORIENTATION_QUIRKS
+
+          # BTS (branch tracing, debug feature)
+          force_off X86_BTS
+
+          # CPU vulnerability mitigations reporting (not needed for shell)
+          force_off GENERIC_CPU_VULNERABILITIES
+          force_off CPU_MITIGATIONS
+
           echo "=== Force-off complete ==="
 
       - name: Show config summary
