@@ -1,8 +1,7 @@
 # Kernel config fragment - merged onto allnoconfig
 # Target: HP 85DD, AMD Ryzen 5 3500U
-# Use case: USB shell, FAT32, text display via efifb (no DRM), HID keyboard
 # Kernel 6.6 LTS
-# Key change: dropped DRM entirely, using FB_EFI directly - saves ~400KB
+# This version explicitly kills everything that snuck in last build
 
 # --- 64-bit x86 ---
 CONFIG_64BIT=y
@@ -15,14 +14,49 @@ CONFIG_CC_OPTIMIZE_FOR_SIZE=y
 CONFIG_KERNEL_XZ=y
 CONFIG_EMBEDDED=y
 
-# --- CPU / AMD only ---
+# --- CPU: AMD only, kill all other vendor support ---
 CONFIG_MZEN=y
 CONFIG_MICROCODE=y
 CONFIG_MICROCODE_AMD=y
+CONFIG_CPU_SUP_AMD=y
+CONFIG_CPU_SUP_INTEL=n
+CONFIG_CPU_SUP_HYGON=n
+CONFIG_CPU_SUP_CENTAUR=n
+CONFIG_CPU_SUP_ZHAOXIN=n
 CONFIG_X86_LOCAL_APIC=y
 CONFIG_X86_IO_APIC=y
+# Kill Intel-specific perf/thermal pulled in by default
+CONFIG_PERF_EVENTS=n
+CONFIG_PERF_EVENTS_INTEL_UNCORE=n
+CONFIG_PERF_EVENTS_INTEL_RAPL=n
+CONFIG_PERF_EVENTS_INTEL_CSTATE=n
+CONFIG_X86_PKG_TEMP_THERMAL=n
+CONFIG_INTEL_TCC=n
+CONFIG_X86_MCE=n
 
-# --- ACPI (minimal set - only what Ryzen needs to not crash) ---
+# --- Kill debug/crash/trace bloat ---
+CONFIG_KALLSYMS=n
+CONFIG_BUG=n
+CONFIG_ELF_CORE=n
+CONFIG_COREDUMP=n
+CONFIG_SLUB_DEBUG=n
+CONFIG_DEBUG_MEMORY_INIT=n
+
+# --- Kill unneeded syscalls ---
+CONFIG_IO_URING=n
+CONFIG_AIO=n
+CONFIG_SGETMASK_SYSCALL=n
+CONFIG_SYSFS_SYSCALL=n
+CONFIG_FHANDLE=n
+CONFIG_ADVISE_SYSCALLS=n
+CONFIG_MEMBARRIER=n
+CONFIG_RSEQ=n
+CONFIG_CACHESTAT_SYSCALL=n
+
+# --- Kill namespace support (not needed for single shell) ---
+CONFIG_NAMESPACES=n
+
+# --- ACPI: minimal, kill CPPC (pulls in MAILBOX/PCC) and hotplug ---
 CONFIG_ACPI=y
 CONFIG_ACPI_PROCESSOR=y
 CONFIG_ACPI_PROCESSOR_IDLE=y
@@ -35,20 +69,33 @@ CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
 CONFIG_X86_ACPI_CPUFREQ=y
 CONFIG_X86_AMD_PLATFORM_DEVICE=y
-# Explicitly kill the ACPI extras that kept sneaking back in
-CONFIG_ACPI_AC=n
-CONFIG_ACPI_BATTERY=n
-CONFIG_ACPI_FAN=n
+# Kill things that snuck in
+CONFIG_ACPI_CPPC_LIB=n
 CONFIG_ACPI_HOTPLUG_CPU=n
 CONFIG_ACPI_CONTAINER=n
 CONFIG_ACPI_HOTPLUG_IOAPIC=n
 CONFIG_ACPI_TABLE_UPGRADE=n
-CONFIG_ACPI_CUSTOM_SSDT_OVERLAYS=n
 CONFIG_ACPI_PRMT=n
 CONFIG_ACPI_PCC=n
 CONFIG_ACPI_SPCR_TABLE=n
 CONFIG_ACPI_LPIT=n
+CONFIG_ACPI_AC=n
+CONFIG_ACPI_BATTERY=n
+CONFIG_ACPI_FAN=n
 CONFIG_ACPI_SLEEP=n
+CONFIG_MAILBOX=n
+CONFIG_PCC=n
+
+# --- Kill SCSI (pulled in silently, we have no SCSI devices) ---
+CONFIG_SCSI=n
+CONFIG_SCSI_MOD=n
+
+# --- Kill PNP/PNPACPI ---
+CONFIG_PNP=n
+CONFIG_PNPACPI=n
+
+# --- Kill thermal framework (ACPI thermal handles it directly) ---
+CONFIG_THERMAL=n
 
 # --- PCI ---
 CONFIG_PCI=y
@@ -56,13 +103,13 @@ CONFIG_PCI_DIRECT=y
 CONFIG_PCI_MMCONFIG=y
 CONFIG_PCI_MSI=y
 CONFIG_PCIEPORTBUS=y
+CONFIG_PCIEASPM=n
 
-# --- EFI (no stub, no vars) ---
+# --- EFI (minimal) ---
 CONFIG_EFI=y
 CONFIG_EFI_STUB=n
 CONFIG_EFIVAR_FS=n
 CONFIG_EFI_ESRT=n
-CONFIG_EFI_CUSTOM_SSDT_OVERLAYS=n
 
 # --- Memory ---
 CONFIG_SPARSEMEM=y
@@ -77,8 +124,8 @@ CONFIG_USB=y
 CONFIG_USB_XHCI_HCD=y
 CONFIG_USB_STORAGE=y
 
-# --- Display: pure efifb, NO DRM at all ---
-# DRM pulls in KMS/GEM/panel/bridge chain (~400KB), skip it entirely
+# --- Display: pure efifb, no DRM ---
+CONFIG_DRM=n
 CONFIG_FB=y
 CONFIG_FB_CORE=y
 CONFIG_FB_EFI=y
@@ -88,15 +135,17 @@ CONFIG_VT=y
 CONFIG_VT_CONSOLE=y
 CONFIG_DUMMY_CONSOLE=y
 CONFIG_FONT_8x16=y
-# Kill DRM and all its helpers
-CONFIG_DRM=n
 
-# --- Keyboard via HID only ---
+# --- Keyboard: HID only, kill PS/2 stack ---
 CONFIG_INPUT=y
 CONFIG_INPUT_KEYBOARD=y
 CONFIG_HID=y
 CONFIG_HID_GENERIC=y
 CONFIG_USB_HID=y
+CONFIG_SERIO=n
+CONFIG_SERIO_I8042=n
+CONFIG_SERIO_LIBPS2=n
+CONFIG_KEYBOARD_ATKBD=n
 CONFIG_INPUT_VIVALDIFMAP=n
 
 # --- Filesystems: FAT32 only ---
@@ -110,10 +159,15 @@ CONFIG_SYSFS=y
 CONFIG_DEVTMPFS=y
 CONFIG_DEVTMPFS_MOUNT=y
 
-# --- initramfs ---
+# --- initramfs: XZ and GZIP only, kill the rest ---
 CONFIG_BLK_DEV_INITRD=y
 CONFIG_RD_XZ=y
 CONFIG_RD_GZIP=y
+CONFIG_RD_BZIP2=n
+CONFIG_RD_LZMA=n
+CONFIG_RD_LZO=n
+CONFIG_RD_LZ4=n
+CONFIG_RD_ZSTD=n
 
 # --- Executable formats ---
 CONFIG_BINFMT_ELF=y
