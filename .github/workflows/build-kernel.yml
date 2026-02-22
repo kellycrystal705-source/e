@@ -27,36 +27,34 @@ jobs:
           tar -xf linux-6.6.tar.xz
           rm linux-6.6.tar.xz
 
-      - name: Build config from allnoconfig + our fragment
+      - name: Build config from allnoconfig + fragment
         run: |
           cd linux-6.6
-          # Start with everything OFF
           make allnoconfig
-          # Merge our explicit options on top
           ./scripts/kconfig/merge_config.sh .config ../kernel.fragment
-          # Fill any remaining dependencies automatically
           make olddefconfig
 
-      - name: Show final config summary
+      - name: Show config summary
         run: |
           cd linux-6.6
+          echo "=== Total options enabled ==="
           grep "^CONFIG_" .config | wc -l
-          echo "--- Key options ---"
-          grep -E "^CONFIG_(DRM|FB|USB|EXT4|VFAT|ACPI|EFI|VT|HID|INPUT|PRINTK|KERNEL_XZ|CC_OPTIMIZE)" .config
+          echo "=== Full enabled config ==="
+          grep "^CONFIG_" .config
 
       - name: Build kernel
         run: |
           cd linux-6.6
-          make -j$(nproc) bzImage 2>&1 | tail -30
+          make -j$(nproc) bzImage 2>&1 | tail -20
 
       - name: Report size
         run: |
           ls -lh linux-6.6/arch/x86/boot/bzImage
-          size=$(du -k linux-6.6/arch/x86/boot/bzImage | cut -f1)
-          echo "Final size: ${size} KB (target: ~1300 KB)"
+          du -k linux-6.6/arch/x86/boot/bzImage | awk '{print "Size: "$1" KB"}'
 
       - name: Upload vmlinuz
         uses: actions/upload-artifact@v4
         with:
           name: vmlinuz
           path: linux-6.6/arch/x86/boot/bzImage
+          retention-days: 30
