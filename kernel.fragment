@@ -1,7 +1,8 @@
 # Kernel config fragment - merged onto allnoconfig
 # Target: HP 85DD, AMD Ryzen 5 3500U
-# Use case: USB shell, FAT32, text display, keyboard (HID covers both built-in + USB)
+# Use case: USB shell, FAT32, text display via efifb (no DRM), HID keyboard
 # Kernel 6.6 LTS
+# Key change: dropped DRM entirely, using FB_EFI directly - saves ~400KB
 
 # --- 64-bit x86 ---
 CONFIG_64BIT=y
@@ -21,10 +22,11 @@ CONFIG_MICROCODE_AMD=y
 CONFIG_X86_LOCAL_APIC=y
 CONFIG_X86_IO_APIC=y
 
-# --- ACPI (Ryzen needs this) ---
+# --- ACPI (minimal set - only what Ryzen needs to not crash) ---
 CONFIG_ACPI=y
-CONFIG_ACPI_SLEEP=y
 CONFIG_ACPI_PROCESSOR=y
+CONFIG_ACPI_PROCESSOR_IDLE=y
+CONFIG_ACPI_PROCESSOR_CSTATE=y
 CONFIG_ACPI_THERMAL=y
 CONFIG_ACPI_BUTTON=y
 CONFIG_CPU_IDLE=y
@@ -33,23 +35,40 @@ CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
 CONFIG_X86_ACPI_CPUFREQ=y
 CONFIG_X86_AMD_PLATFORM_DEVICE=y
+# Explicitly kill the ACPI extras that kept sneaking back in
+CONFIG_ACPI_AC=n
+CONFIG_ACPI_BATTERY=n
+CONFIG_ACPI_FAN=n
+CONFIG_ACPI_HOTPLUG_CPU=n
+CONFIG_ACPI_CONTAINER=n
+CONFIG_ACPI_HOTPLUG_IOAPIC=n
+CONFIG_ACPI_TABLE_UPGRADE=n
+CONFIG_ACPI_CUSTOM_SSDT_OVERLAYS=n
+CONFIG_ACPI_PRMT=n
+CONFIG_ACPI_PCC=n
+CONFIG_ACPI_SPCR_TABLE=n
+CONFIG_ACPI_LPIT=n
+CONFIG_ACPI_SLEEP=n
 
-# --- PCI (AMD USB controller needs this) ---
+# --- PCI ---
 CONFIG_PCI=y
 CONFIG_PCI_DIRECT=y
 CONFIG_PCI_MMCONFIG=y
 CONFIG_PCI_MSI=y
 CONFIG_PCIEPORTBUS=y
 
-# --- EFI ---
+# --- EFI (no stub, no vars) ---
 CONFIG_EFI=y
-# Dropped EFI_STUB - grub loads the kernel, stub not needed
+CONFIG_EFI_STUB=n
+CONFIG_EFIVAR_FS=n
+CONFIG_EFI_ESRT=n
+CONFIG_EFI_CUSTOM_SSDT_OVERLAYS=n
 
 # --- Memory ---
 CONFIG_SPARSEMEM=y
 CONFIG_SPARSEMEM_VMEMMAP=y
 
-# --- Block (USB storage needs this) ---
+# --- Block ---
 CONFIG_BLOCK=y
 
 # --- USB ---
@@ -58,28 +77,29 @@ CONFIG_USB=y
 CONFIG_USB_XHCI_HCD=y
 CONFIG_USB_STORAGE=y
 
-# --- Display (efifb, no GPU driver) ---
+# --- Display: pure efifb, NO DRM at all ---
+# DRM pulls in KMS/GEM/panel/bridge chain (~400KB), skip it entirely
 CONFIG_FB=y
 CONFIG_FB_CORE=y
 CONFIG_FB_EFI=y
-CONFIG_DRM=y
-CONFIG_DRM_SIMPLEDRM=y
 CONFIG_FRAMEBUFFER_CONSOLE=y
 CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
 CONFIG_VT=y
 CONFIG_VT_CONSOLE=y
 CONFIG_DUMMY_CONSOLE=y
 CONFIG_FONT_8x16=y
+# Kill DRM and all its helpers
+CONFIG_DRM=n
 
-# --- Keyboard via HID only (covers USB + built-in laptop keyboard) ---
-# Dropped SERIO / i8042 / ATKBD (PS/2 legacy stack - not needed)
+# --- Keyboard via HID only ---
 CONFIG_INPUT=y
 CONFIG_INPUT_KEYBOARD=y
 CONFIG_HID=y
 CONFIG_HID_GENERIC=y
 CONFIG_USB_HID=y
+CONFIG_INPUT_VIVALDIFMAP=n
 
-# --- Filesystems - FAT32 only, dropped ext4 ---
+# --- Filesystems: FAT32 only ---
 CONFIG_VFAT_FS=y
 CONFIG_FAT_FS=y
 CONFIG_NLS_CODEPAGE_437=y
@@ -111,6 +131,6 @@ CONFIG_POSIX_TIMERS=y
 CONFIG_TTY=y
 CONFIG_UNIX98_PTYS=y
 
-# --- Printk (smaller buffer) ---
+# --- Printk (tiny buffer) ---
 CONFIG_PRINTK=y
 CONFIG_LOG_BUF_SHIFT=10
